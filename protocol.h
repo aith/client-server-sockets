@@ -16,9 +16,9 @@ enum class cxi_command : uint8_t {
 constexpr size_t FILENAME_SIZE = 59;
 constexpr size_t HEADER_SIZE = 64;
 struct cxi_header {
-   uint32_t nbytes {};
-   cxi_command command {cxi_command::ERROR};
-   char filename[FILENAME_SIZE] {};
+   uint32_t nbytes {};                        // How large the file is
+   cxi_command command {cxi_command::ERROR}; 
+   char filename[FILENAME_SIZE] {};           // cstr
 };
 
 static_assert (sizeof (cxi_header) == HEADER_SIZE);

@@ -9,9 +9,12 @@ using namespace std;
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <memory>
 #include "protocol.h"
 #include "logstream.h"
 #include "sockets.h"
+
+#include <fstream>
 
 logstream outlog (cout);
 struct cxi_exit: public exception {};
@@ -47,6 +50,82 @@ void reply_ls (accepted_socket& client_sock, cxi_header& header) {
    outlog << "sent " << ls_output.size() << " bytes" << endl;
 }
 
+// void reply_put (accepted_socket& client_sock, cxi_header& header) {
+//    // ifstream os (header.filename, ifstream::binary);
+//    std::ofstream os (header.filename, std::ofstream::binary);
+//    // recv_packet(client_sock, &header, sizeof header); 
+//    if(header.nbytes != 0) {
+//       if (os) {
+//          size_t host_nbytes = ntohl (header.nbytes);
+//          auto buffer = make_unique<char[]>(host_nbytes + 1);
+//          recv_packet(client_sock, buffer.get(), header.nbytes); 
+//          os.write(buffer.get(), host_nbytes+1);  
+//          header.command = cxi_command::ACK;
+//          os.close();
+//       }
+//       else {  // File doesn't exist, so send NAK
+//          // auto buffer = make_unique<char[]>(0 + 1);
+//          // recv_packet(client_sock, buffer.get(), 0); 
+//          header.command = cxi_command::NAK;
+//       }
+//     }
+//     else {
+//        // Are we supposed to send NAK on empty file?  
+//        // recv_packet(client_sock, buffer.get(), header.nbytes); 
+//        header.command = cxi_command::NAK;
+//        outlog << "nbytes is 0" << endl;
+//     }
+//     send_packet(client_sock, &header, sizeof header);
+// }
+// 
+void reply_put (accepted_socket& client_sock, cxi_header& header) {
+   outlog << "header.filename is " << header.filename << endl;
+   std::ofstream os (header.filename, std::ofstream::binary);
+   if(header.nbytes != 0) {
+      if (os) {
+         header.command = cxi_command::ACK;
+         send_packet (client_sock, &header, sizeof header);
+         size_t host_nbytes = htonl (header.nbytes);  // server's byte size
+         auto buffer = make_unique<char[]>(host_nbytes + 1);
+         outlog << "receiving buffer" << endl;
+         // recv_packet(client_sock, buffer.get(), header.nbytes); 
+         recv_packet(client_sock, buffer.get(), host_nbytes);  
+         outlog << "received buffer" << endl;
+         os.write(buffer.get(), host_nbytes+1);  
+         os.close();
+         // send_packet (client_sock, &header, sizeof header);
+      }
+      else {  // File doesn't exist, so send NAK
+         // auto buffer = make_unique<char[]>(0 + 1);
+         // recv_packet(client_sock, buffer.get(), 0);
+         outlog << "error: could find file" << endl;
+         header.command = cxi_command::NAK;
+         send_packet (client_sock, &header, sizeof header);
+      }
+    }
+    else { // could not open ofstream
+       // Are we supposed to send NAK on empty file?  
+       // recv_packet(client_sock, buffer.get(), header.nbytes); 
+       outlog << "error: could not open ofstream" << endl;
+       header.command = cxi_command::NAK;
+      send_packet (client_sock, &header, sizeof header);
+    }
+   // outlog << "sending header " << header << endl;
+}
+
+
+void reply_rm (accepted_socket& client_sock, cxi_header& header) {
+   int status = unlink(header.filename);  // Delete from filesys
+   if(status == 0) {
+      header.command = cxi_command::ACK;
+      outlog << "sending header " << header << endl;
+   }
+   else {
+      header.command = cxi_command::NAK;
+   }
+   send_packet(client_sock, &header, sizeof header);
+}
+
 
 void run_server (accepted_socket& client_sock) {
    outlog.execname (outlog.execname() + "-server");
@@ -59,6 +138,13 @@ void run_server (accepted_socket& client_sock) {
          switch (header.command) {
             case cxi_command::LS: 
                reply_ls (client_sock, header);
+               break;
+            case cxi_command::PUT: 
+               outlog << "entering reply_put" << endl;
+               reply_put (client_sock, header);
+               break;
+            case cxi_command::RM: 
+               reply_rm (client_sock, header);
                break;
             default:
                outlog << "invalid client header:" << header << endl;
