@@ -29,6 +29,7 @@ unordered_map<string,cxi_command> command_map {
    {"help", cxi_command::HELP},
    {"ls"  , cxi_command::LS  },
    {"put" , cxi_command::PUT  },
+   {"get" , cxi_command::GET  },
    {"rm"  , cxi_command::RM  },
 };
 
@@ -83,19 +84,18 @@ void cxi_ls (client_socket& server) {
    }
 }
 
+// every time we do a send_packet, the other has to recv packet.
 void cxi_put (client_socket& server, string& filename) {
    cxi_header header;
    header.command = cxi_command::PUT;
    strcpy(header.filename, filename.c_str());
-   ifstream is (header.filename, std::ofstream::binary);
+   ifstream is (header.filename, std::ifstream::binary);
    if (is) {
       is.seekg (0, is.end);
-      int client_length = is.tellg();
-      auto host_nbytes = htonl(client_length);   // change to network endianness
+      size_t client_length = is.tellg();
+      auto host_nbytes = htonl(client_length); //conv to network endian
       header.nbytes = host_nbytes;
-      // header.nbytes = client_length;
       is.seekg (0, is.beg);
-      // cout << client_length << endl;
 
       outlog << "sending header " << header << endl;
       send_packet(server, &header, sizeof header); 
@@ -105,7 +105,7 @@ void cxi_put (client_socket& server, string& filename) {
          // size_t host_nbytes = htonl (header.nbytes);
          // size_t host_nbytes = htons (header.nbytes);
          // cout << "host_nbytes is " << host_nbytes << endl;
-         auto buffer = make_unique<char[]> (static_cast<size_t>(client_length) + 1);
+         auto buffer = make_unique<char[]> (client_length + 1);
          // char buffer[client_length];
          is.read (buffer.get(), client_length);
          // is.read (buffer.get(), host_nbytes);
@@ -118,21 +118,84 @@ void cxi_put (client_socket& server, string& filename) {
          is.close();
       }
       else {  // Bad
-      // size_t host_nbytes = ntohl (header.nbytes);
-      // auto buffer = make_unique<char[]> (host_nbytes + 1);
-
-      // is.read (buffer.get(), client_length);
-      // buffer[client_length] = '\0';  // End of Line at end of buffer
-
-      // is.close();
-      // send_packet(server, buffer.get(), host_nbytes);
-   // }
-   // if (header.command != cxi_command::NAK) {  // Good
-   // }
-   // else {  // Bad
+         outlog << "error: server could not write file" << endl;
       }
    }
+   else {  
+      outlog << "error: server could not write file" << endl;
+   }
 }
+
+
+void cxi_get (client_socket& server, string& filename) {
+   cxi_header header;
+   header.command = cxi_command::GET;
+   strcpy(header.filename, filename.c_str());
+   ofstream os (header.filename, std::ofstream::binary);
+   outlog << "sending header " << header << endl;
+   // 0 goes to server loop
+   send_packet(server, &header, sizeof header); 
+   // 1 gets from reply_get's if (is) statement
+   recv_packet(server, &header, sizeof header); 
+   outlog << "received header " << header << endl;
+   if(os) {
+      if (header.command == cxi_command::FILEOUT) { 
+         size_t host_nbytes = ntohl(header.nbytes);
+         auto buffer = make_unique<char[]>(host_nbytes + 1);
+         // 2
+         recv_packet(server, buffer.get(), host_nbytes);
+         buffer[host_nbytes] = '\0';
+         os.write(buffer.get(), host_nbytes);
+         os.close();
+      }
+      else {
+         outlog << "error: could not open ofstream" << endl;
+         header.command = cxi_command::NAK;
+      }
+   }
+   else {
+      outlog << "error: could not open ostream" << endl;
+   }
+}
+
+// void cxi_get (client_socket& server, string& filename) {
+//    cxi_header header;
+//    header.command = cxi_command::GET;
+//    strcpy(header.filename, filename.c_str());
+//    ofstream os (header.filename, std::ofstream::binary);
+//    if (os) {
+//       // os.seekg (0, os.end);
+//       // int client_length = os.tellg();
+//       // auto host_nbytes = htonl(client_length);   // change to network endianness
+//       // header.nbytes = host_nbytes;
+
+//       outlog << "sending header " << header << endl;
+//       // 0 goes to server loop
+//       send_packet(server, &header, sizeof header); 
+//       // 1 gets from reply_get's if (is) statement
+//       recv_packet(server, &header, sizeof header); 
+//       outlog << "received header " << header << endl;
+
+//       if (header.command == cxi_command::FILEOUT) { 
+//          size_t client_size = ntohl(header.nbytes);
+//          auto buffer = make_unique<char[]> (client_size + 1);
+//          recv_packet (server, buffer.get(), client_size);
+//          buffer[client_size] = '\0';  // End of Line at end of buffer
+
+//          // 2 get file data
+//          outlog << "received buffer" << endl;
+//          os.write(buffer.get(), client_size);
+//          os.close();
+//       }
+//       else { 
+//          outlog << "error: server could not open ifstream" << endl;
+//       }
+//    }
+//    else {
+//       outlog << "error: could not open ofstream" << endl;
+//       header.command = cxi_command::NAK;
+//    }
+// }
 
 // void cxi_put (client_socket& server, string& filename) {
 //    cxi_header header;
@@ -243,6 +306,9 @@ int main (int argc, char** argv) {
             case cxi_command::PUT:
                cout << "inside put option " << endl;
                cxi_put (server, filename);
+               break;
+            case cxi_command::GET:
+               cxi_get (server, filename);
                break;
             default:
                outlog << line << ": invalid command" << endl;

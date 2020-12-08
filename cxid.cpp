@@ -85,34 +85,95 @@ void reply_put (accepted_socket& client_sock, cxi_header& header) {
       if (os) {
          header.command = cxi_command::ACK;
          send_packet (client_sock, &header, sizeof header);
-         size_t host_nbytes = htonl (header.nbytes);  // server's byte size
-         auto buffer = make_unique<char[]>(host_nbytes + 1);
+         // size_t host_nbytes = htonl (header.nbytes);  // server's byte size
+         size_t host_nbytes = ntohl (header.nbytes);  // server's byte size
+         // auto buffer = make_unique<char[]>(host_nbytes + 1);
+         auto buffer = make_unique<char[]>(host_nbytes);
          outlog << "receiving buffer" << endl;
-         // recv_packet(client_sock, buffer.get(), header.nbytes); 
          recv_packet(client_sock, buffer.get(), host_nbytes);  
          outlog << "received buffer" << endl;
-         os.write(buffer.get(), host_nbytes+1);  
+         // os.write(buffer.get(), host_nbytes + 1);  
+         os.write(buffer.get(), host_nbytes);  
          os.close();
-         // send_packet (client_sock, &header, sizeof header);
       }
       else {  // File doesn't exist, so send NAK
-         // auto buffer = make_unique<char[]>(0 + 1);
-         // recv_packet(client_sock, buffer.get(), 0);
          outlog << "error: could find file" << endl;
          header.command = cxi_command::NAK;
-         send_packet (client_sock, &header, sizeof header);
       }
     }
     else { // could not open ofstream
        // Are we supposed to send NAK on empty file?  
-       // recv_packet(client_sock, buffer.get(), header.nbytes); 
        outlog << "error: could not open ofstream" << endl;
        header.command = cxi_command::NAK;
-      send_packet (client_sock, &header, sizeof header);
     }
-   // outlog << "sending header " << header << endl;
 }
 
+void reply_get (accepted_socket& client_sock, cxi_header& header) {
+   outlog << "header.filename is " << header.filename << endl;
+   std::ifstream is (header.filename, std::ifstream::binary);
+      if (is) {
+         header.command = cxi_command::FILEOUT;
+         is.seekg (0, is.end);
+         size_t length = is.tellg();
+         is.seekg (0, is.beg);
+         // don't think it needs to be length+1 bc just passing wo null
+         auto buffer = make_unique<char[]>(length);
+         is.read(buffer.get(), length);  
+         // header.nbytes = htonl(sizeof buffer);
+         header.nbytes = htonl(length);
+         // 1
+         outlog << "sending header " << header << endl;
+         send_packet (client_sock, &header, sizeof header);
+         // 2
+         cout << "sending buffer" << endl;
+         // sizeof buffer works, host_nbytes doesn't
+         send_packet(client_sock, buffer.get(), sizeof buffer);  
+         outlog << "sent buffer" << endl;
+         is.close();
+      }
+      else {  // File doesn't exist, so send NAK
+         outlog << "error: could not find file" << endl;
+         header.command = cxi_command::NAK;
+      }
+}
+
+// void reply_get (accepted_socket& client_sock, cxi_header& header) {
+//    outlog << "header.filename is " << header.filename << endl;
+//    std::ifstream is (header.filename, std::ifstream::binary);
+//       if (is) {
+//          is.seekg (0, is.end);
+//          // size_t length = is.tellg();
+//          // auto host_nbytes = htonl(host_size);   // change to network endianness
+//          int length = is.tellg();
+//          header.command = cxi_command::FILEOUT;
+
+//          size_t host_nbytes = htonl(length);
+//          auto buffer = make_unique<char[]>(length+1); // maybe wo +1
+//          is.read(buffer.get(), length);  
+
+//          cout << "host_nbytes" << host_nbytes << endl;
+//          cout << "sizeof (buffer) is " << sizeof buffer << endl;
+//          host_nbytes = htonl(sizeof buffer);
+//          header.nbytes = host_nbytes;
+//          is.seekg (0, is.beg);
+
+//          // 1
+//          outlog << "sending header " << header << endl;
+//          send_packet (client_sock, &header, sizeof header);
+
+//          // 2
+//          cout << "sending buffer" << endl;
+//          // sizeof buffer works, host_nbytes doesn't
+//          send_packet(client_sock, buffer.get(), sizeof buffer);  
+//          outlog << "sent buffer" << endl;
+
+//          is.close();
+//       }
+//       else {  // File doesn't exist, so send NAK
+//          outlog << "error: could not find file" << endl;
+//          header.command = cxi_command::NAK;
+//       }
+// }
 
 void reply_rm (accepted_socket& client_sock, cxi_header& header) {
    int status = unlink(header.filename);  // Delete from filesys
@@ -133,6 +194,7 @@ void run_server (accepted_socket& client_sock) {
    try {   
       for (;;) {
          cxi_header header; 
+         // 0
          recv_packet (client_sock, &header, sizeof header);
          outlog << "received header " << header << endl;
          switch (header.command) {
@@ -145,6 +207,9 @@ void run_server (accepted_socket& client_sock) {
                break;
             case cxi_command::RM: 
                reply_rm (client_sock, header);
+               break;
+            case cxi_command::GET: 
+               reply_get (client_sock, header);
                break;
             default:
                outlog << "invalid client header:" << header << endl;
