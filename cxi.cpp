@@ -102,28 +102,24 @@ void cxi_put (client_socket& server, string& filename) {
       recv_packet(server, &header, sizeof header); 
       outlog << "received header " << header << endl;
       if (header.command != cxi_command::NAK) {  // Good
-         // size_t host_nbytes = htonl (header.nbytes);
-         // size_t host_nbytes = htons (header.nbytes);
-         // cout << "host_nbytes is " << host_nbytes << endl;
          auto buffer = make_unique<char[]> (client_length + 1);
-         // char buffer[client_length];
          is.read (buffer.get(), client_length);
-         // is.read (buffer.get(), host_nbytes);
          buffer[client_length] = '\0';  // End of Line at end of buffer
-         // buffer[host_nbytes] = '\0';  // End of Line at end of buffer
 
          outlog << "sending buffer" << endl;
          send_packet(server, buffer.get(), client_length);
-         // send_packet(server, buffer.get(), host_nbytes);
+         outlog << "success!" << endl;
          is.close();
       }
       else {  // Bad
+         cerr << "PUT: Could not write file" << endl;
          outlog << "error: server could not write file" << endl;
          return;
       }
    }
    else {  
-      outlog << "error: server could not write file" << endl;
+      cerr << "PUT: Could not write file" << endl;
+      outlog << "error: server could find file" << endl;
       return;
    }
 }
@@ -134,30 +130,35 @@ void cxi_get (client_socket& server, string& filename) {
    header.command = cxi_command::GET;
    // header.nbytes = htonl(0);  // payload at 1 must be nbytes = 0
    strcpy(header.filename, filename.c_str());
-   ofstream os (header.filename, std::ofstream::binary);
    outlog << "sending header " << header << endl;
    // 0 goes to server loop
    send_packet(server, &header, sizeof header); 
    // 1 gets from reply_get's if (is) statement
    recv_packet(server, &header, sizeof header); 
    outlog << "received header " << header << endl;
-   if(os) {
-      if (header.command == cxi_command::FILEOUT) { 
-         size_t host_nbytes = ntohl(header.nbytes);
-         cout << "bytes to get is " << host_nbytes << endl;
-         auto buffer = make_unique<char[]>(host_nbytes + 1);
-         // 2
-         recv_packet(server, buffer.get(), host_nbytes);
-         buffer[host_nbytes] = '\0';
-         os.write(buffer.get(), host_nbytes);
-         os.close();
-      }
-      else {
-         outlog << "error: could not open ofstream" << endl;
-      }
+   if (header.nbytes != 0) {
+      ofstream os (header.filename, std::ofstream::binary);
+      if(os) {
+         if (header.command == cxi_command::FILEOUT) { 
+            size_t host_nbytes = ntohl(header.nbytes);
+            auto buffer = make_unique<char[]>(host_nbytes + 1);
+            // 2
+            outlog << "receiving packet" << endl;
+            recv_packet(server, buffer.get(), host_nbytes);
+            os.write(buffer.get(), host_nbytes);
+            buffer[host_nbytes] = '\0';
+            os.close();
+            outlog << "success!" << endl;
+            }
+         }
+         else {
+            cerr << "PUT: Could not open ofstream" << endl;
+            outlog << "error: could not open ofstream" << endl;
+         }
    }
    else {
-      outlog << "error: could not open ostream" << endl;
+         cerr << "PUT: Could not find file" << endl;
+         outlog << "error: could not find file" << endl;
    }
 }
 
@@ -172,6 +173,7 @@ void cxi_rm (client_socket& server, string& filename) {
       outlog << "File successfully deleted" << endl;
    }
    else {
+      cerr << "RM: Could not locate file" << endl;
       outlog << "Could not locate file" << endl;
    }
 }
@@ -278,7 +280,6 @@ int main (int argc, char** argv) {
          string filename;
          // this might result in error, so put it later
          if (cin.eof()) throw cxi_exit();
-         outlog << "command " << line << endl;
          const auto& itor = command_map.find (command);
          cxi_command cmd = itor == command_map.end()
                          ? cxi_command::ERROR : itor->second;
