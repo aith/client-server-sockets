@@ -1,7 +1,8 @@
 // $Id: cxi.cpp,v 1.1 2020-11-22 16:51:43-08 - - $
-// All we gotta implement is get, put, and rm? right?
-// put: put a file from user onto server
-// get: get file from server to user
+// Overview: For every send_packet(), there must be
+// a recv_packet() on the opposing server or client.
+// Data is sent through data packets. The buffer stores
+// the byte data that we want.
 
 #include <iostream>
 #include <memory>
@@ -84,7 +85,6 @@ void cxi_ls (client_socket& server) {
    }
 }
 
-// every time we do a send_packet, the other has to recv packet.
 void cxi_put (client_socket& server, string& filename) {
    cxi_header header;
    header.command = cxi_command::PUT;
@@ -111,7 +111,7 @@ void cxi_put (client_socket& server, string& filename) {
          outlog << "success!" << endl;
          is.close();
       }
-      else {  // Bad
+      else {  // Bad output
          cerr << "PUT: Could not write file" << endl;
          outlog << "error: server could not write file" << endl;
          return;
@@ -124,11 +124,9 @@ void cxi_put (client_socket& server, string& filename) {
    }
 }
 
-
 void cxi_get (client_socket& server, string& filename) {
    cxi_header header;
    header.command = cxi_command::GET;
-   // header.nbytes = htonl(0);  // payload at 1 must be nbytes = 0
    strcpy(header.filename, filename.c_str());
    outlog << "sending header " << header << endl;
    // 0 goes to server loop
@@ -178,75 +176,6 @@ void cxi_rm (client_socket& server, string& filename) {
    }
 }
 
-// void cxi_get (client_socket& server, string& filename) {
-//    cxi_header header;
-//    header.command = cxi_command::GET;
-//    strcpy(header.filename, filename.c_str());
-//    ofstream os (header.filename, std::ofstream::binary);
-//    if (os) {
-//       // os.seekg (0, os.end);
-//       // int client_length = os.tellg();
-//       // auto host_nbytes = htonl(client_length);
-//       // header.nbytes = host_nbytes;
-
-//       outlog << "sending header " << header << endl;
-//       // 0 goes to server loop
-//       send_packet(server, &header, sizeof header); 
-//       // 1 gets from reply_get's if (is) statement
-//       recv_packet(server, &header, sizeof header); 
-//       outlog << "received header " << header << endl;
-
-//       if (header.command == cxi_command::FILEOUT) { 
-//          size_t client_size = ntohl(header.nbytes);
-//          auto buffer = make_unique<char[]> (client_size + 1);
-//          recv_packet (server, buffer.get(), client_size);
-//          buffer[client_size] = '\0';  // End of Line at end of buffer
-
-//          // 2 get file data
-//          outlog << "received buffer" << endl;
-//          os.write(buffer.get(), client_size);
-//          os.close();
-//       }
-//       else { 
-//          outlog << "error: server could not open ifstream" << endl;
-//       }
-//    }
-//    else {
-//       outlog << "error: could not open ofstream" << endl;
-//       header.command = cxi_command::NAK;
-//    }
-// }
-
-// void cxi_put (client_socket& server, string& filename) {
-//    cxi_header header;
-//    header.command = cxi_command::PUT;
-//    strcpy(header.filename, filename.c_str());
-//    send_packet(server, &header, sizeof header); 
-//    recv_packet(server, &header, sizeof header); 
-//    ifstream is (header.filename, std::ifstream::binary);
-//    if (is) {
-//       is.seekg (0, is.end);
-//       auto client_length = is.tellg();
-//       header.nbytes = client_length;  // client_length?
-//       // ISSUE: not receiving correct number of bytes
-//       is.seekg (0, is.beg);
-
-//       size_t host_nbytes = ntohl (header.nbytes);
-//       auto buffer = make_unique<char[]> (host_nbytes + 1);
-
-//       is.read (buffer.get(), client_length);
-//       buffer[client_length] = '\0';  // End of Line at end of buffer
-
-//       is.close();
-//       send_packet(server, buffer.get(), host_nbytes);
-//    }
-//    if (header.command != cxi_command::NAK) {  // Good
-//    }
-//    else {  // Bad
-      
-//    }
-// }
-
 
 void usage() {
    cerr << "Usage: " << outlog.execname() << " [host] [port]" << endl;
@@ -263,22 +192,14 @@ int main (int argc, char** argv) {
    outlog << to_string (hostinfo()) << endl;
    try {
       outlog << "connecting to " << host << " port " << port << endl;
-      client_socket server (host, port);  // ctor attempts to bind
+      client_socket server (host, port);  
       outlog << "connected to " << to_string (server) << endl;
       for (;;) {
          string line;
          getline (cin, line);
-         // * Do split(line) here and you'll get a vector.
-         // If you do "put filename", vec[0] will be "put"
-         // and vec[1] will be "filename".
-         // 
-         // theres cases you'll needa account for. such
-         // as, if you only do "ls"
          auto words = split(line, " ");
-         // use this to look for command
          auto command = words[0];  
          string filename;
-         // this might result in error, so put it later
          if (cin.eof()) throw cxi_exit();
          const auto& itor = command_map.find (command);
          cxi_command cmd = itor == command_map.end()

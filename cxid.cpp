@@ -50,34 +50,6 @@ void reply_ls (accepted_socket& client_sock, cxi_header& header) {
    outlog << "sent " << ls_output.size() << " bytes" << endl;
 }
 
-// void reply_put (accepted_socket& client_sock, cxi_header& header) {
-//    // ifstream os (header.filename, ifstream::binary);
-//    std::ofstream os (header.filename, std::ofstream::binary);
-//    // recv_packet(client_sock, &header, sizeof header); 
-//    if(header.nbytes != 0) {
-//       if (os) {
-//          size_t host_nbytes = ntohl (header.nbytes);
-//          auto buffer = make_unique<char[]>(host_nbytes + 1);
-//          recv_packet(client_sock, buffer.get(), header.nbytes); 
-//          os.write(buffer.get(), host_nbytes+1);  
-//          header.command = cxi_command::ACK;
-//          os.close();
-//       }
-//       else {  // File doesn't exist, so send NAK
-//          // auto buffer = make_unique<char[]>(0 + 1);
-//          // recv_packet(client_sock, buffer.get(), 0); 
-//          header.command = cxi_command::NAK;
-//       }
-//     }
-//     else {
-//        // Are we supposed to send NAK on empty file?  
-//        // recv_packet(client_sock, buffer.get(), header.nbytes); 
-//        header.command = cxi_command::NAK;
-//        outlog << "nbytes is 0" << endl;
-//     }
-//     send_packet(client_sock, &header, sizeof header);
-// }
-// 
 void reply_put (accepted_socket& client_sock, cxi_header& header) {
    outlog << "header.filename is " << header.filename << endl;
    std::ofstream os (header.filename, std::ofstream::binary);
@@ -87,7 +59,6 @@ void reply_put (accepted_socket& client_sock, cxi_header& header) {
          outlog << "sending header " << header << endl;
          send_packet (client_sock, &header, sizeof header);
          size_t host_nbytes = ntohl (header.nbytes);  
-         // auto buffer = make_unique<char[]>(host_nbytes + 1);
          auto buffer = make_unique<char[]>(host_nbytes);
          outlog << "receiving buffer" << endl;
          recv_packet(client_sock, buffer.get(), host_nbytes);  
@@ -103,7 +74,6 @@ void reply_put (accepted_socket& client_sock, cxi_header& header) {
       }
     }
     else { // could not open ofstream
-       // Are we supposed to send NAK on empty file?  
        outlog << "PUT" << strerror (errno) << endl;
        outlog << "error: could not open ofstream" << endl;
        header.command = cxi_command::NAK;
@@ -123,7 +93,6 @@ void reply_get (accepted_socket& client_sock, cxi_header& header) {
          header.nbytes = htonl(length);
          // 1
          outlog << "sending header " << header << endl;
-         // send_packet (client_sock, &header, sizeof header);
          send_packet (client_sock, &header, sizeof header);
          // 2
          cout << "sending buffer" << endl;
