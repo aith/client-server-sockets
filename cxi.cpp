@@ -119,10 +119,12 @@ void cxi_put (client_socket& server, string& filename) {
       }
       else {  // Bad
          outlog << "error: server could not write file" << endl;
+         return;
       }
    }
    else {  
       outlog << "error: server could not write file" << endl;
+      return;
    }
 }
 
@@ -130,7 +132,7 @@ void cxi_put (client_socket& server, string& filename) {
 void cxi_get (client_socket& server, string& filename) {
    cxi_header header;
    header.command = cxi_command::GET;
-   header.nbytes = htonl(0);
+   // header.nbytes = htonl(0);  // payload at 1 must be nbytes = 0
    strcpy(header.filename, filename.c_str());
    ofstream os (header.filename, std::ofstream::binary);
    outlog << "sending header " << header << endl;
@@ -142,6 +144,7 @@ void cxi_get (client_socket& server, string& filename) {
    if(os) {
       if (header.command == cxi_command::FILEOUT) { 
          size_t host_nbytes = ntohl(header.nbytes);
+         cout << "bytes to get is " << host_nbytes << endl;
          auto buffer = make_unique<char[]>(host_nbytes + 1);
          // 2
          recv_packet(server, buffer.get(), host_nbytes);
@@ -151,7 +154,6 @@ void cxi_get (client_socket& server, string& filename) {
       }
       else {
          outlog << "error: could not open ofstream" << endl;
-         header.command = cxi_command::NAK;
       }
    }
    else {
@@ -182,7 +184,7 @@ void cxi_rm (client_socket& server, string& filename) {
 //    if (os) {
 //       // os.seekg (0, os.end);
 //       // int client_length = os.tellg();
-//       // auto host_nbytes = htonl(client_length);   // change to network endianness
+//       // auto host_nbytes = htonl(client_length);
 //       // header.nbytes = host_nbytes;
 
 //       outlog << "sending header " << header << endl;
@@ -273,9 +275,8 @@ int main (int argc, char** argv) {
          auto words = split(line, " ");
          // use this to look for command
          auto command = words[0];  
-         cout << "command is " << command << endl;
+         string filename;
          // this might result in error, so put it later
-         auto filename = words[1];  
          if (cin.eof()) throw cxi_exit();
          outlog << "command " << line << endl;
          const auto& itor = command_map.find (command);
@@ -292,13 +293,27 @@ int main (int argc, char** argv) {
                cxi_ls (server);
                break;
             case cxi_command::RM:
+               if (words.size() < 1) {
+                  outlog << "Command requires second input" << endl;
+                  break;
+               }
+               filename = words[1];  
                cxi_rm (server, filename);
                break;
             case cxi_command::PUT:
-               cout << "inside put option " << endl;
+               if (words.size() < 1) {
+                  outlog << "Command requires second input" << endl;
+                  break;
+               }
+               filename = words[1];  
                cxi_put (server, filename);
                break;
             case cxi_command::GET:
+               if (words.size() < 1) {
+                  outlog << "Command requires second input" << endl;
+                  break;
+               }
+               filename = words[1];  
                cxi_get (server, filename);
                break;
             default:

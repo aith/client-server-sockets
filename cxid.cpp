@@ -85,8 +85,7 @@ void reply_put (accepted_socket& client_sock, cxi_header& header) {
       if (os) {
          header.command = cxi_command::ACK;
          send_packet (client_sock, &header, sizeof header);
-         // size_t host_nbytes = htonl (header.nbytes);  // server's byte size
-         size_t host_nbytes = ntohl (header.nbytes);  // server's byte size
+         size_t host_nbytes = ntohl (header.nbytes);  
          // auto buffer = make_unique<char[]>(host_nbytes + 1);
          auto buffer = make_unique<char[]>(host_nbytes);
          outlog << "receiving buffer" << endl;
@@ -99,12 +98,14 @@ void reply_put (accepted_socket& client_sock, cxi_header& header) {
       else {  // File doesn't exist, so send NAK
          outlog << "error: could find file" << endl;
          header.command = cxi_command::NAK;
+         send_packet (client_sock, &header, sizeof header);
       }
     }
     else { // could not open ofstream
        // Are we supposed to send NAK on empty file?  
        outlog << "error: could not open ofstream" << endl;
        header.command = cxi_command::NAK;
+         send_packet (client_sock, &header, sizeof header);
     }
 }
 
@@ -119,7 +120,6 @@ void reply_get (accepted_socket& client_sock, cxi_header& header) {
          // don't think it needs to be length+1 bc just passing wo null
          auto buffer = make_unique<char[]>(length);
          is.read(buffer.get(), length);  
-         // header.nbytes = htonl(sizeof buffer);
          header.nbytes = htonl(length);
          // 1
          outlog << "sending header " << header << endl;
@@ -127,13 +127,14 @@ void reply_get (accepted_socket& client_sock, cxi_header& header) {
          // 2
          cout << "sending buffer" << endl;
          // sizeof buffer works, host_nbytes doesn't
-         send_packet(client_sock, buffer.get(), sizeof buffer);  
+         send_packet(client_sock, buffer.get(), length);  
          outlog << "sent buffer" << endl;
          is.close();
       }
       else {  // File doesn't exist, so send NAK
          outlog << "error: could not find file" << endl;
          header.command = cxi_command::NAK;
+         send_packet (client_sock, &header, sizeof header);
       }
 }
 
@@ -143,7 +144,6 @@ void reply_get (accepted_socket& client_sock, cxi_header& header) {
 //       if (is) {
 //          is.seekg (0, is.end);
 //          // size_t length = is.tellg();
-//          // auto host_nbytes = htonl(host_size);   // change to network endianness
 //          int length = is.tellg();
 //          header.command = cxi_command::FILEOUT;
 
@@ -183,7 +183,7 @@ void reply_rm (accepted_socket& client_sock, cxi_header& header) {
    }
    else {
       header.command = cxi_command::NAK;
-      outlog << "could not find file. Sending header " << header << endl;
+      outlog << "could not find file. Header: " << header << endl;
    }
    send_packet(client_sock, &header, sizeof header);
 }
