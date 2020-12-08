@@ -130,6 +130,7 @@ void cxi_put (client_socket& server, string& filename) {
 void cxi_get (client_socket& server, string& filename) {
    cxi_header header;
    header.command = cxi_command::GET;
+   header.nbytes = htonl(0);
    strcpy(header.filename, filename.c_str());
    ofstream os (header.filename, std::ofstream::binary);
    outlog << "sending header " << header << endl;
@@ -155,6 +156,21 @@ void cxi_get (client_socket& server, string& filename) {
    }
    else {
       outlog << "error: could not open ostream" << endl;
+   }
+}
+
+void cxi_rm (client_socket& server, string& filename) {
+   cxi_header header;
+   header.command = cxi_command::RM;
+   strcpy(header.filename, filename.c_str());
+   // 0
+   send_packet(server, &header, sizeof header); 
+   recv_packet(server, &header, sizeof header); 
+   if (header.command == cxi_command::ACK) { 
+      outlog << "File successfully deleted" << endl;
+   }
+   else {
+      outlog << "Could not locate file" << endl;
    }
 }
 
@@ -227,31 +243,6 @@ void cxi_get (client_socket& server, string& filename) {
 //    }
 // }
 
-
-void cxi_rm (client_socket& server, string& filename) {
-   // cxi_header header;
-   // strcpy(header.filename, filename.c_str());  // from Tre
-   // //didnt finish. I don't think we need more than 1 send packet
-   // // size_t host_nbytes = ntohl (header.nbytes);
-   // // send_packet(server, buffer.get(), header.nbytes);
-   // // recv_packet(server, buffer.get(), header.nbytes);
-   // header.command = cxi_command::RM;
-   // outlog << "sending header " << header << endl;
-   // send_packet (server, &header, sizeof header);
-   // recv_packet (server, &header, sizeof header);
-   // outlog << "received header " << header << endl;
-   // if (header.command != cxi_command::ACK) {  // As per the docs
-   //    outlog << "sent RM, server did not return ACK" << endl;
-   //    outlog << "server returned " << header << endl;
-   // }else {
-   //    size_t host_nbytes = ntohl (header.nbytes);
-   //    auto buffer = make_unique<char[]> (host_nbytes + 1);
-   //    recv_packet (server, buffer.get(), host_nbytes);
-   //    outlog << "received " << host_nbytes << " bytes" << endl;
-   //    buffer[host_nbytes] = '\0';
-   //    cout << buffer.get();
-   // }
-}
 
 void usage() {
    cerr << "Usage: " << outlog.execname() << " [host] [port]" << endl;

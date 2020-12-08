@@ -179,10 +179,11 @@ void reply_rm (accepted_socket& client_sock, cxi_header& header) {
    int status = unlink(header.filename);  // Delete from filesys
    if(status == 0) {
       header.command = cxi_command::ACK;
-      outlog << "sending header " << header << endl;
+      outlog << "deleted the file. Sending header " << header << endl;
    }
    else {
       header.command = cxi_command::NAK;
+      outlog << "could not find file. Sending header " << header << endl;
    }
    send_packet(client_sock, &header, sizeof header);
 }
