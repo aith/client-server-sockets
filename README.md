@@ -1,6 +1,6 @@
 ## A client-server terminal interface
-cxi - client
-cxid - server (d for daemon)
+cxi - client  
+cxid - server (d for daemon)  
 
 ### Usage
 ```
@@ -10,7 +10,7 @@ mkdir remote
 ln -s cxid remote/cxid
 ln -s cxi local/cxi
 ```
-In one terminal, run the local folder's cxi,
+In one terminal, run the local folder's cxi  
 in another, run the remote folder's cxid
 
 ### Commands 
